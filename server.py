@@ -1,66 +1,88 @@
 import socket
 from _thread import *
 import pickle
-from player import Player
+from game import Game
+import sys
 
 PORT = 5555
 SERVER = socket.gethostbyname(socket.gethostname())
+
+# SERVER = ""
 ADDR = (SERVER, PORT)
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 try:
-    s.bind(ADDR)
+    server.bind(ADDR)
 except socket.error as e:
     str(e)
 
-s.listen(2)
+server.listen(2)
 print("SERVER UP: Waiting for Connections..")
 
+# this will carry the game instances
+games = {}
+idCount = 0
 
-players = [Player(0, 0, 50, 50, (255, 0, 0)), Player(100, 100, 50, 50, (0, 0, 255))]
 
-
-def threaded_client(conn, player):
+def threaded_client(conn, p, gameId):
+    global idCount
 
     # When a connection is made initially, send back player object
     # Before sending -> encode and serialize data
-    conn.send(pickle.dumps(players[player]))
+    # check if p is 0 or 1, odd or even. this will determine what player to send back
+    # this sends back player position
+    if p % 2 == 0:
+        conn.send(pickle.dumps(games[gameId].player1))
+    else:
+        conn.send(pickle.dumps(games[gameId].player2))
 
     reply = ""
     while True:
         try:
-
             # this should be the current players position
             data = pickle.loads(conn.recv(2048))
-            players[player] = data
 
             if not data:
-                print("Disconnected")
+                print("Disconnected, Server didnt receive data")
                 break
+            # put this into the games object, players position
+            # check which player
+            if p % 2 == 0:
+                games[gameId].player1 = data
             else:
+                games[gameId].player2 = data
 
-                # Whatever the current player is,
-                # Send the other players object
-                if player == 1:
-                    reply = players[0]
-                else:
-                    reply = players[1]
+            if p % 2 == 0:
+                reply = games[gameId].player2
+            else:
+                reply = games[gameId].player1
 
-            # Turn into serialized pickle object for sending back
             conn.sendall(pickle.dumps(reply))
-
         except:
             break
 
     print("Lost connection")
+    try:
+        del games[gameId]
+        print("Closing Game", gameId)
+    except:
+        pass
+    idCount -= 1
     conn.close()
 
 
-currentPlayer = 0
-
 while True:
-    conn, addr = s.accept()
+    conn, addr = server.accept()
     print("Connected to:", addr)
 
-    start_new_thread(threaded_client, (conn, currentPlayer))
-    currentPlayer += 1
+    idCount += 1
+    p = 0
+    gameId = (idCount - 1) // 2
+    if idCount % 2 == 1:
+        games[gameId] = Game(gameId)
+        print("Creating a new game...")
+    else:
+        games[gameId].ready = True
+        p = 1
+
+    start_new_thread(threaded_client, (conn, p, gameId))

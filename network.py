@@ -7,7 +7,8 @@ import pickle
 class Network:
     def __init__(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.SERVER = socket.gethostbyname(socket.gethostname())
+        # self.SERVER = socket.gethostbyname(socket.gethostname())
+        self.SERVER = "45.56.74.237"
         self.PORT = 5555
         self.ADDR = (self.SERVER, self.PORT)
         # this will make the connection when Network gets Instantiated
